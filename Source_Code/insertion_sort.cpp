@@ -16,6 +16,6 @@ PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
 int main(int argc, char *argv[]){
 	int myrank;
 	int array{7,13,18,2,17,1,14,20,6,10,15,9,3,16,19,4,11,12,5,8};//This array is the same one in the book
-	//is is only temp
-	PQsort(20,
+	//size = 20, array *array, pivot = 0(changes in pivot), MPI_Comm comm 
+	PQsort(20, array, 0, MPI_COMM_WORLD);
 }
