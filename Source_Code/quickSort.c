@@ -43,8 +43,8 @@ void display(int a[],int size){
 
 int main(int argc, char *argv[]){
 	int myrank,i, size;
-	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	MPI_Init(&argc,&argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	size = 20;
 	int array[20];
 	if (myrank==0){
