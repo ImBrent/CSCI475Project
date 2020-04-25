@@ -1,3 +1,6 @@
+#include <iostream>
+#include <stdlib>
+using namespace std;
 /*CSCI 475 
 insertion sort
 Donivan Anderson
@@ -11,6 +14,8 @@ Brent Clapp*/
 5. repeat to 1 until each process is sorted.
 */
 PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
+	pivot = rand % (nelements-1); //select a pivot within the range of size
+	MPI_scatterv
 }
 
 int main(int argc, char *argv[]){
