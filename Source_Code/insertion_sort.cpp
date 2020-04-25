@@ -14,8 +14,20 @@ Brent Clapp*/
 5. repeat to 1 until each process is sorted.
 */
 PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
-	pivot = rand % (nelements-1); //select a pivot within the range of size
-	MPI_scatterv
+	MPI_Init(&argc,&argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
+	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
+	pivot = rand % (nelements-1);			//select a pivot within the range of size
+	x = nelements % grp_size;			//x is the number of elements % number of processors
+	y = nelements / grp_size;			//y is the number of elements / number of processors
+	if(x!=0 && myrank <= x){
+		int data[y+1]		//number of elements to send is counting for remainders.
+	}
+	else
+		int data[y];				//Data to be sent
+	
+	
+	MPI_scatterV(
 }
 
 int main(int argc, char *argv[]){
