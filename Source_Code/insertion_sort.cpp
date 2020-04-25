@@ -15,7 +15,7 @@ Brent Clapp*/
 5. repeat to 1 until each process is sorted.
 */
 int PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
-/*	int myrank, grp_size;
+	int myrank, grp_size;
 	int *buf;
 	/*MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
@@ -34,28 +34,31 @@ int PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
 	buf = (int* )malloc(send_count*sizeof(int));
 	MPI_Scatterv(*elements, send_count,displs,MPI_INT,buf,send_count,MPI_INT,0,MPI_COMM_WORLD);*/
 }
-void display(int *a[],int size){
+void display(int *p,int size){
 	int i;
-	printf("/n The array is");
 	for(i=0;i<size;i++)
-		printf("/n %d", *a[i]);	
+		printf(" %d", p[i]);
+	printf("%d\n");
 }
 
 int main(int argc, char *argv[]){
+	MPI_Init(&argc,&argv);
 	int myrank,i, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
-	MPI_Init(&argc,&argv);
 	size = 20;
-	int *array[20];
+	int array[20];
 	if (myrank==0){
 		for(i=0;i<size;i++)
-			*array[i] = rand()%size;
+			array[i] = rand()%size;
 	}		
 		
-	//size = size, array *array, pivot = 0(changes in pivot), MPI_Comm comm 
-	PQsort(size, *array, 0, MPI_COMM_WORLD);
-	display(array,size);
+	//size = size, array array, pivot = 0(changes in pivot), MPI_Comm comm 
+	//PQsort(size, array, 0, MPI_COMM_WORLD);
+	if(myrank==0)
+		display(array,size);
+	
 	MPI_Finalize();
+	return 0;
 }
 
 
