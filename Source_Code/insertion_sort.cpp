@@ -19,20 +19,24 @@ PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	pivot = rand % (nelements-1);			//select a pivot within the range of size
 	x = nelements % grp_size;			//x is the number of elements % number of processors
-	y = nelements / grp_size;			//y is the number of elements / number of processors
+	send_count = nelements / grp_size;		//y is the number of elements / number of processors
+	
 	if(x!=0 && myrank <= x){
-		int data[y+1]		//number of elements to send is counting for remainders.
+		int data[send_count+1]	//number of elements to send is counting for remainders.
 	}
 	else
-		int data[y];				//Data to be sent
+		int data[send_count];	//Data to be sent
 	
-	
-	MPI_scatterV(
+	buf = (int* )malloc(send_count*sizeof(int));
+	MPI_scatterV(elements, send_count,MPI_Int,buf,send_count,MPI_Int,0,MPI_COMM_WORLD)
 }
 
 int main(int argc, char *argv[]){
+	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	int myrank;
-	int array{7,13,18,2,17,1,14,20,6,10,15,9,3,16,19,4,11,12,5,8};//This array is the same one in the book
+	if (myrank==0)
+		int array{7,13,18,2,17,1,14,20,6,10,15,9,3,16,19,4,11,12,5,8};//This array is the same one in the book
+	
 	//size = 20, array *array, pivot = 0(changes in pivot), MPI_Comm comm 
 	PQsort(20, array, 0, MPI_COMM_WORLD);
 }
