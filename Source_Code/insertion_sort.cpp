@@ -21,7 +21,7 @@ int PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	pivot = rand() % (nelements-1);			//select a pivot within the range of size
 	int y = nelements / grp_size;			//y is the number of elements / number of processors
-	int *send_count[y];				//The data that is being sent
+	int send_count[y];						//The data that is being sent
 	int x = nelements % grp_size;			//x is the number of elements % number of processors
 	int *displs=(int* )malloc(grp_size*sizeof(int));//dspls has an index for each processor	
 	buf = (int* )malloc(y*sizeof(int));	//buf has an index for each element
@@ -33,20 +33,21 @@ int PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
 			displs[i] = y;	//Data to be sent
 	}
 	
-	MPI_Scatterv(elements, send_count,displs,MPI_INT,buf,send_count,MPI_INT,0,MPI_COMM_WORLD);
+	MPI_Scatterv(elements, send_count,displs,MPI_INT,buf,y,MPI_INT,0,MPI_COMM_WORLD);
 }
 
 void display(int *p,int size){
 	int i;
 	for(i=0;i<size;i++)
-		printf(" %d", p[i]);
-	printf("%d\n");
+		printf(" %d ", p[i]);
+	//printf("%d\n");
 }
 
 int main(int argc, char *argv[]){
 	MPI_Init(&argc,&argv);
-	int myrank,i, size;
+	int myrank,i, size, grp_size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
+	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	size = 20;
 	int array[20];
 	if (myrank==0){
@@ -54,13 +55,18 @@ int main(int argc, char *argv[]){
 			array[i] = rand()%size;
 	}		
 		
-	//size = size, array array, pivot = 0(changes in pivot), MPI_Comm comm 
-	//PQsort(size, array, 0, MPI_COMM_WORLD);
-	if(myrank==0)
+	if(myrank==0){
 		display(array,size);
+		printf("\n");
+	}
+	
+	//size = size, array array, pivot = 0(changes in pivot), MPI_Comm comm 
+	PQsort(size, array, 0, MPI_COMM_WORLD);
+	//printf(" \n(%d)",grp_size);
+	//display(array,size/grp_size);
+	//printf("\n%d");
 	
 	MPI_Finalize();
-	return 0;
 }
 
 
