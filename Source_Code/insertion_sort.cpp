@@ -15,25 +15,27 @@ Brent Clapp*/
 5. repeat to 1 until each process is sorted.
 */
 int PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
-	int myrank, grp_size;
+	int myrank, grp_size,i;
 	int *buf;
-	/*MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
+	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	pivot = rand() % (nelements-1);			//select a pivot within the range of size
+	int y = nelements / grp_size;			//y is the number of elements / number of processors
+	int *send_count[y];				//The data that is being sent
 	int x = nelements % grp_size;			//x is the number of elements % number of processors
-	int send_count = nelements / grp_size;		//send_count is the number of elements / number of processors
-	int *displs=(int* )malloc(grp_size*sizeof(int));
+	int *displs=(int* )malloc(grp_size*sizeof(int));//dspls has an index for each processor	
+	buf = (int* )malloc(y*sizeof(int));	//buf has an index for each element
 	
-	if(x!=0 && myrank <= x){
-		int data[send_count+1];	//number of elements to send is counting for remainders.
-	}
-	else{
-		int data[send_count];	//Data to be sent
+	for(i=0;i<grp_size;i++){
+		if(x!=0 && myrank <= x)
+			displs[i] = y+1;	//number of elements to send is counting for remainders.
+		else
+			displs[i] = y;	//Data to be sent
 	}
 	
-	buf = (int* )malloc(send_count*sizeof(int));
-	MPI_Scatterv(*elements, send_count,displs,MPI_INT,buf,send_count,MPI_INT,0,MPI_COMM_WORLD);*/
+	MPI_Scatterv(elements, send_count,displs,MPI_INT,buf,send_count,MPI_INT,0,MPI_COMM_WORLD);
 }
+
 void display(int *p,int size){
 	int i;
 	for(i=0;i<size;i++)
