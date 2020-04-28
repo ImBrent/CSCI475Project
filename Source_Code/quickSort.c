@@ -16,8 +16,11 @@ Brent Clapp*/
 4. assign elements to processes (but we need to keep processes separate from last pivot)
 5. repeat to 1 until each process is sorted.
 */
+
+void swap(int* array, int index1, int index2);
+
 int PQsort(int nelements, int *elements, MPI_Comm comm){
-	int myRank, recCnt, grp_size, i, pivotIndex, randProc, root = 0, currOffset = 0;
+	int myRank, recCnt, grp_size, i, pivot, randProc, root = 0, currOffset = 0, splitIndex;
 	int *localArray, *send_count, *displacements;
 	MPI_Comm_rank(MPI_COMM_WORLD, &myRank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
@@ -55,23 +58,67 @@ int PQsort(int nelements, int *elements, MPI_Comm comm){
 
 	
 	//Root: Select a random process
-	if(myRank == root){
+	if(myRank == root)
 		randProc = rand() % grp_size;
-		printf("Root process says hi, we selected: %d\n", randProc);
-	}
+	
 	MPI_Bcast(&randProc, 1, MPI_INT, root, MPI_COMM_WORLD);
 	
 	//RandProc: Select a pivot
 	if(myRank == randProc){
-		printf("Random process %d says hi\n", myRank);
+		pivot = localArray[rand() % recCnt];
+		printf("Pivot selected: %d\n", pivot);
 	}//end if
-	
+	//Distribute the pivot to all processes
+	MPI_Bcast(&pivot, 1, MPI_INT, randProc, MPI_COMM_WORLD);
+
+
+	if(myRank == root)
+		printf("\nValues of all processes before and after");
+MPI_Barrier(MPI_COMM_WORLD);
 	char* outputStringTest = (char*)malloc(500);
-	sprintf(outputStringTest, "My rank: %d\nMy values: ", myRank);
+	sprintf(outputStringTest, "My rank: %d\nMy initial values: ", myRank);
+	for(i = 0; i < recCnt; i++)
+		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
+
+	//Partition the arrays:
+	splitIndex = partition(localArray, recCnt, pivot);
+
+
+//TESTING: Everybody output their newly partitioned arrays:
+
+MPI_Barrier(MPI_COMM_WORLD);
+	sprintf(outputStringTest, "%s\nMy partitioned values: ", outputStringTest);
+
 	for(i = 0; i < recCnt; i++)
 		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
 	printf("%s\n", outputStringTest);
+
 }
+/***************************************************************************
+partition
+Given an array, its size and a pivot
+Partitions the array into two subarrays based upon the pivot value,
+returns the index of where the second subarray starts by value.
+Passed array is modified by reference
+****************************************************************************/
+int partition(int* array, int size, int pivot){
+	int leftIndex = 0, rightIndex;
+	for(rightIndex = 0; rightIndex < size; rightIndex++)
+		//If current element is smaller than pivot, place in left subarray
+		if(array[rightIndex] < pivot)
+			swap(array, leftIndex++, rightIndex);
+	return leftIndex; //leftIndex has location in which second subarray starts
+}//end partition
+
+/*************************************************************
+swap
+Given array, two indices, swap the values at the two indices
+*************************************************************/
+void swap(int* array, int index1, int index2){
+	int temp = array[index1];
+	array[index1] = array[index2];
+	array[index2] = temp;
+}//end swap
 
 void display(int *p,int size){
 	int i;
@@ -102,5 +149,4 @@ int main(int argc, char *argv[]){
 	
 	MPI_Finalize();
 }
-
 
