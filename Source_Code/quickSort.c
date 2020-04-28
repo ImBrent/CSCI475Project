@@ -1,5 +1,7 @@
 #include<stdlib.h>
 #include<stdio.h>
+#include<time.h>
+#include <string.h>
 #include "mpi.h"
 
 /*CSCI 475 
@@ -14,37 +16,76 @@ Brent Clapp*/
 4. assign elements to processes (but we need to keep processes separate from last pivot)
 5. repeat to 1 until each process is sorted.
 */
-int PQsort(int nelements, int *elements, int pivot, MPI_Comm comm){
-/*	int myrank, grp_size;
-	int *buf;
-	/*MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
+int PQsort(int nelements, int *elements, MPI_Comm comm){
+	int myRank, recCnt, grp_size, i, pivotIndex, randProc, root = 0, currOffset = 0;
+	int *localArray, *send_count, *displacements;
+	MPI_Comm_rank(MPI_COMM_WORLD, &myRank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
-	pivot = rand() % (nelements-1);			//select a pivot within the range of size
-	int x = nelements % grp_size;			//x is the number of elements % number of processors
-	int send_count = nelements / grp_size;		//send_count is the number of elements / number of processors
-	int *displs=(int* )malloc(grp_size*sizeof(int));
 	
-	if(x!=0 && myrank <= x){
-		int data[send_count+1];	//number of elements to send is counting for remainders.
-	}
-	else{
-		int data[send_count];	//Data to be sent
-	}
+
+	if(myRank == root){
+		int dataBlockSize = nelements / grp_size;			//y is the number of elements / number of processors
+		int largeDataBlock = dataBlockSize + 1;
+		send_count = (int*)malloc(grp_size * sizeof(int));	//The data that is being sent
+		int remainder = nelements % grp_size;			//x is the number of elements % number of processors
+		displacements=(int* )malloc(grp_size*sizeof(int));//dspls has an index for each processor			
+		
+		//Determine size of data to send to each process
+		for(i=0;i<grp_size;i++){
+			displacements[i] = currOffset; //Record where the data starts at
+			//Record size of data, update where next data will start
+			if(remainder!=0){ //Account for case that nelements % grp_size != 0
+				send_count[i] = largeDataBlock;
+				currOffset += largeDataBlock;
+				remainder--;
+			} else{ //No remainder left
+				send_count[i] = dataBlockSize;
+				currOffset += dataBlockSize;
+			}//end else
+		}
+	}//end if
 	
-	buf = (int* )malloc(send_count*sizeof(int));
-	MPI_Scatterv(*elements, send_count,displs,MPI_INT,buf,send_count,MPI_INT,0,MPI_COMM_WORLD);*/
+	//Tell each process how much data to read
+	MPI_Scatter(send_count, 1, MPI_INT, &recCnt, 1, MPI_INT, root, MPI_COMM_WORLD);	
+	//Prepare a buffer large enough for that data
+	localArray = (int*)malloc(recCnt * sizeof(int));
+	
+	//Distribute that data to each process
+	MPI_Scatterv(elements, send_count,displacements,MPI_INT,localArray,recCnt,MPI_INT,0,MPI_COMM_WORLD);
+
+	
+	//Root: Select a random process
+	if(myRank == root){
+		randProc = rand() % grp_size;
+		printf("Root process says hi, we selected: %d\n", randProc);
+	}
+	MPI_Bcast(&randProc, 1, MPI_INT, root, MPI_COMM_WORLD);
+	
+	//RandProc: Select a pivot
+	if(myRank == randProc){
+		printf("Random process %d says hi\n", myRank);
+	}//end if
+	
+	char* outputStringTest = (char*)malloc(500);
+	sprintf(outputStringTest, "My rank: %d\nMy values: ", myRank);
+	for(i = 0; i < recCnt; i++)
+		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
+	printf("%s\n", outputStringTest);
 }
-void display(int a[],int size){
+
+void display(int *p,int size){
 	int i;
-	printf("\n The array is");
 	for(i=0;i<size;i++)
-		printf("\n %d", a[i]);	
+		printf(" %d ", p[i]);
+	//printf("%d\n");
 }
 
 int main(int argc, char *argv[]){
-	int myrank,i, size;
 	MPI_Init(&argc,&argv);
+	srand(time(0)); //Seed rng
+	int myrank,i, size, grp_size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
+	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	size = 20;
 	int array[20];
 	if (myrank==0){
@@ -52,9 +93,13 @@ int main(int argc, char *argv[]){
 			array[i] = rand()%size;
 	}		
 		
-	//size = size, array *array, pivot = 0(changes in pivot), MPI_Comm comm 
-	PQsort(size, array, 0, MPI_COMM_WORLD);
-	display(array,size);
+	if(myrank==0){
+		display(array,size);
+		printf("\n");
+	}
+
+	PQsort(size, array, MPI_COMM_WORLD);
+	
 	MPI_Finalize();
 }
 
