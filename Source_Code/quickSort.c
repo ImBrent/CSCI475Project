@@ -104,8 +104,8 @@ Passed array is modified by reference
 int partition(int* array, int size, int pivot){
 	int leftIndex = 0, rightIndex;
 	for(rightIndex = 0; rightIndex < size; rightIndex++)
-		//If current element is smaller than pivot, place in left subarray
-		if(array[rightIndex] < pivot)
+		//If current element is smaller than or equal to pivot, place in left subarray
+		if(array[rightIndex] <= pivot)
 			swap(array, leftIndex++, rightIndex);
 	return leftIndex; //leftIndex has location in which second subarray starts
 }//end partition
