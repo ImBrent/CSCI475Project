@@ -1,4 +1,5 @@
 #include<stdlib.h>
+#include <unistd.h>
 #include<stdio.h>
 #include<time.h>
 #include <string.h>
@@ -17,11 +18,13 @@ Brent Clapp*/
 5. repeat to 1 until each process is sorted.
 */
 
+void display(int *p,int size);
 void swap(int* array, int index1, int index2);
+int prefixSumRearrangement(int group_size, int listSize, int **elements, int* splitLocations, int* elsAtEachProcess);
 
 int PQsort(int nelements, int *elements, MPI_Comm comm){
-	int myRank, recCnt, grp_size, i, pivot, randProc, root = 0, currOffset = 0, splitIndex;
-	int *localArray, *send_count, *displacements;
+	int myRank, recCnt, grp_size, i, pivot, randProc, root = 0, currOffset = 0, splitIndex, largeArrayStartIndex;
+	int *localArray, *send_count, *displacements, *splitLocations;
 	MPI_Comm_rank(MPI_COMM_WORLD, &myRank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	
@@ -66,92 +69,52 @@ int PQsort(int nelements, int *elements, MPI_Comm comm){
 	//RandProc: Select a pivot
 	if(myRank == randProc){
 		pivot = localArray[rand() % recCnt];
-		printf("Pivot selected: %d\n", pivot);
+		printf("Pivot selected: %d\n", pivot); //**** TESTING CODE
 	}//end if
 	//Distribute the pivot to all processes
 	MPI_Bcast(&pivot, 1, MPI_INT, randProc, MPI_COMM_WORLD);
 
-
+//Start testing code
 	if(myRank == root)
-		printf("\nValues of all processes before and after");
-MPI_Barrier(MPI_COMM_WORLD);
+		printf("\nValues of all processes before and after\n");
+sleep(1);
 	char* outputStringTest = (char*)malloc(500);
 	sprintf(outputStringTest, "My rank: %d\nMy initial values: ", myRank);
 	for(i = 0; i < recCnt; i++)
 		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
-
+//end testing code
 	//Partition the arrays:
 	splitIndex = partition(localArray, recCnt, pivot);
 
-
-//TESTING: Everybody output their newly partitioned arrays:
-
-MPI_Barrier(MPI_COMM_WORLD);
+//Start testing code
 	sprintf(outputStringTest, "%s\nMy partitioned values: ", outputStringTest);
 
 	for(i = 0; i < recCnt; i++)
 		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
 	printf("%s\n", outputStringTest);
-/*
-not final result yet... still in progress
-/*
 
-Gather
-we need to put the elements back, but we need to keep the elements <=
-than the pivot seperate from the > ones.
+//end testing code
 
-*/
+	//Root gathers all partitioned values back up
+	MPI_Gatherv(localArray, recCnt, MPI_INT,
+				elements, send_count, displacements, MPI_INT,
+				root, MPI_COMM_WORLD);
 
-	MPI_Barrier(MPI_COMM_WORLD);
-		int j,size;
-		int *buf;
-		int* recvcounts;
-		int* displs;
-		
-		
-		displs[myRank]=splitIndex;
+	//Root gathers the location of where each subarray "splits" at
+	if(myRank == root)
+		splitLocations = (int*)malloc(grp_size*sizeof(int));
+	MPI_Gather(&splitIndex, 1, MPI_INT, splitLocations, 1, MPI_INT, root, MPI_COMM_WORLD);
 
-		
-	if (myRank == 0) {
-		
-		displs=(int* )malloc(grp_size*sizeof(int));
-		display(displs,grp_size);
-		recvcounts=(int* )malloc(splitIndex*sizeof(int));
-
-	for(i=0; i<splitIndex; i++)
-		recvcounts[i] = i+1;
-
-		/*for(i=0; i<splitIndex; i++){
-			recvcounts[i] = localArray[i];
-			printf("\n RC: %d ", recvcounts[i]);
-		}*/
+	//Utilize the prefix sum operation(Figure 9.19) to perform global rearrangement
+	if(myRank == root)
+		largeArrayStartIndex = prefixSumRearrangement(grp_size, nelements, &elements, splitLocations, send_count);
 	
-		
-	
-		/*for(i=0; i<grp_size; i++){
-			displs[i] = splitIndex;
-			for(j=0; j<i; j++)
-				displs[i] += recvcounts[j];
-		}*/
-		int sendCount =0;
-		for (i=0; i<grp_size; i++)
-			sendCount+=recvcounts[i];
-
-		size=sendCount*sizeof(int);
-        buf  = (int *)malloc(size); /*allocate receiving memory*/
-		//display(buf,splitIndex*grp_size);
-		//buf  = (int *)malloc(splitIndex*sizeof(int)); /*allocate receiving memory*/
-	}
-	 
-	//MPI_Gatherv(localArray, splitIndex, MPI_INT, buf, recvcounts, displs, MPI_INT, 0, MPI_COMM_WORLD);
-	//if(myRank==root)
-		//display(buf,20);
-	//MPI_Gatherv(data,myRank+1,MPI_INT,buf,recvcounts, displs, MPI_INT,0,MPI_COMM_WORLD);
-
-
-
-}
-
+	sleep(1);
+	if(myRank == root){
+		printf("New list of elements: ");
+		display(elements, nelements);
+		printf("\n");
+	}//end if
 }
 /***************************************************************************
 partition
@@ -186,6 +149,48 @@ void display(int *p,int size){
 	//printf("%d\n");
 }
 
+/*********************************************************
+prefixSumRearrangement
+Places the smaller segmenets at the beginning of the list of elements,
+and places the larger segments at the end of the list of elements
+Returns the starting index of the segment of larger elements.
+************************************************************/
+int prefixSumRearrangement(int group_size, int listSize, int **elements, int* splitLocations, int* elsAtEachProcess){
+	int *newElementsList;
+	int i, j, currPositionInNewArray = 0, currPositionInOldArray, smallListSize;
+	newElementsList = (int*)malloc(listSize * sizeof(int));
+
+	
+	//Now, go through each processor's array. First, put small values in the new array
+	currPositionInOldArray = 0;
+	for(i = 0; i < group_size; i++){
+		for(j = 0; j < splitLocations[i]; j++){
+			//Grab each smaller element
+			newElementsList[currPositionInNewArray] = (*elements)[currPositionInOldArray+j];
+			currPositionInNewArray++;
+		}//end for(j)
+		//Move to next subArray
+		currPositionInOldArray += elsAtEachProcess[i];
+	}//end for(i)
+	//All small elements packed into newElementsList now.
+	//Record the size of the Smaller list
+	smallListSize = currPositionInNewArray;
+	currPositionInOldArray = 0;
+	//Now, do the same thing for the larger elements
+	for(i = 0; i < group_size; i++){
+		for(j = splitLocations[i]; j < elsAtEachProcess[i]; j++){
+			//Grab each smaller element
+			newElementsList[currPositionInNewArray] = (*elements)[currPositionInOldArray+j];
+			currPositionInNewArray++;
+		}//end for(j)
+		//Move to next subArray
+		currPositionInOldArray += elsAtEachProcess[i];
+	}//end for(i)
+	//newElementsList now has the expected output. Return the size of the smaller half.
+	*elements = newElementsList;
+	return smallListSize;
+}//end prefixSumRearrangement
+
 int main(int argc, char *argv[]){
 	MPI_Init(&argc,&argv);
 	srand(time(0)); //Seed rng
@@ -193,7 +198,7 @@ int main(int argc, char *argv[]){
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	size = 20;
-	int array[20];
+	int array[size];
 	if (myrank==0){
 		for(i=0;i<size;i++)
 			array[i] = rand()%size;
@@ -205,7 +210,6 @@ int main(int argc, char *argv[]){
 	}
 
 	PQsort(size, array, MPI_COMM_WORLD);
-	
 	MPI_Finalize();
 }
 
