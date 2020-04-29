@@ -94,6 +94,8 @@ MPI_Barrier(MPI_COMM_WORLD);
 	printf("%s\n", outputStringTest);
 /*
 not final result yet... still in progress
+/*
+
 Gather
 we need to put the elements back, but we need to keep the elements <=
 than the pivot seperate from the > ones.
@@ -101,33 +103,49 @@ than the pivot seperate from the > ones.
 */
 
 	MPI_Barrier(MPI_COMM_WORLD);
-	int j, size;
+		int j,size;
 		int *buf;
-		int sendCount;
 		int* recvcounts;
 		int* displs;
+		
+		
+		displs[myRank]=splitIndex;
+
+		
 	if (myRank == 0) {
 		
+		displs=(int* )malloc(grp_size*sizeof(int));
+		display(displs,grp_size);
 		recvcounts=(int* )malloc(splitIndex*sizeof(int));
 
-		for(i=0; i<splitIndex; i++)
+	for(i=0; i<splitIndex; i++)
+		recvcounts[i] = i+1;
+
+		/*for(i=0; i<splitIndex; i++){
 			recvcounts[i] = localArray[i];
+			printf("\n RC: %d ", recvcounts[i]);
+		}*/
 	
-		displs=(int* )malloc(grp_size*sizeof(int));
+		
 	
-		for(i=0; i<grp_size; i++){
-			displs[i] = 0;
+		/*for(i=0; i<grp_size; i++){
+			displs[i] = splitIndex;
 			for(j=0; j<i; j++)
 				displs[i] += recvcounts[j];
-		}
+		}*/
+		int sendCount =0;
+		for (i=0; i<grp_size; i++)
+			sendCount+=recvcounts[i];
 
 		size=sendCount*sizeof(int);
-		buf  = (int *)malloc(size); /*allocate receiving memory*/
+        buf  = (int *)malloc(size); /*allocate receiving memory*/
+		//display(buf,splitIndex*grp_size);
+		//buf  = (int *)malloc(splitIndex*sizeof(int)); /*allocate receiving memory*/
 	}
 	 
-	MPI_Gatherv(localArray, splitIndex, MPI_INT, buf, recvcounts, displs, MPI_INT, 0, MPI_COMM_WORLD);
-	if(myRank==root)
-		display(buf,20);
+	//MPI_Gatherv(localArray, splitIndex, MPI_INT, buf, recvcounts, displs, MPI_INT, 0, MPI_COMM_WORLD);
+	//if(myRank==root)
+		//display(buf,20);
 	//MPI_Gatherv(data,myRank+1,MPI_INT,buf,recvcounts, displs, MPI_INT,0,MPI_COMM_WORLD);
 
 
