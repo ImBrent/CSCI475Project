@@ -30,11 +30,11 @@ int PQsort(int nelements, int *elements, MPI_Comm comm){
 	
 
 	if(myRank == root){
-		int dataBlockSize = nelements / grp_size;		//dataBlockSize is the number of elements / number of processors
+		int dataBlockSize = nelements / grp_size;		//dataBlockSize is the number of elements per processor
 		int largeDataBlock = dataBlockSize + 1;			//largeDataBlock size is used when processors don't have the same number of elements
 		send_count = (int*)malloc(grp_size * sizeof(int));	//Allocate space for the data that is being sent.
-		int remainder = nelements % grp_size;			//remainder is the number of elements that have one more element.
-		displacements=(int* )malloc(grp_size*sizeof(int));	//dispalcements elements are the length for each processor array			
+		int remainder = nelements % grp_size;			//remainder is the number of elements per process.
+		displacements=(int* )malloc(grp_size*sizeof(int));	//displacements elements are the length for each processors array			
 		
 		//Determine size of data to send to each process
 		for(i=0;i<grp_size;i++){
@@ -48,8 +48,8 @@ int PQsort(int nelements, int *elements, MPI_Comm comm){
 				send_count[i] = dataBlockSize;
 				currOffset += dataBlockSize;
 			}//end else
-			}//end if
 		}//end for
+	}
 	
 	//Tell each process how much data to read
 	MPI_Scatter(send_count, 1, MPI_INT, &recCnt, 1, MPI_INT, root, MPI_COMM_WORLD);	
