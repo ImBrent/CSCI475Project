@@ -22,9 +22,12 @@ void display(int *p,int size);
 void swap(int* array, int index1, int index2);
 int prefixSumRearrangement(int group_size, int listSize, int **elements, int* splitLocations, int* elsAtEachProcess);
 
-int PQsort(int nelements, int *elements, MPI_Comm comm){
-	int myRank, recCnt, grp_size, i, pivot, randProc, root = 0, currOffset = 0, splitIndex, largeArrayStartIndex;
+void PQsort(int nelements, int *elements, MPI_Comm comm){
+
+    if(nelements > 1){ //Base case, no sorting left to do
+	int myRank, recCnt, grp_size, i, pivot, randProc, root = 0, currOffset = 0, splitIndex, smallGlobalArraySize, largeGlobalArraySize, color;
 	int *localArray, *send_count, *displacements, *splitLocations;
+	MPI_Comm splitComm;
 	MPI_Comm_rank(MPI_COMM_WORLD, &myRank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	
@@ -107,7 +110,7 @@ sleep(1);
 
 	//Utilize the prefix sum operation(Figure 9.19) to perform global rearrangement
 	if(myRank == root)
-		largeArrayStartIndex = prefixSumRearrangement(grp_size, nelements, &elements, splitLocations, send_count);
+		smallGlobalArraySize = prefixSumRearrangement(grp_size, nelements, &elements, splitLocations, send_count);
 	
 	sleep(1);
 	if(myRank == root){
@@ -115,6 +118,30 @@ sleep(1);
 		display(elements, nelements);
 		printf("\n");
 	}//end if
+	//All processes need to know how big both halves of the global array are
+	MPI_Bcast(&smallGlobalArraySize, 1, MPI_INT, root, MPI_COMM_WORLD);
+	largeGlobalArraySize = nelements - smallGlobalArraySize;
+
+	if(grp_size > 1){
+		//Determine who is going to which subgroup
+		if(myRank < ((smallGlobalArraySize / nelements) * grp_size))
+			color = 0;
+		else
+			color = 1;
+	
+		MPI_Comm_split(MPI_COMM_WORLD, color, 1, &splitComm);
+	
+		if(color == 0)
+			PQsort(smallGlobalArraySize, elements, splitComm);
+		else
+			PQsort(largeGlobalArraySize, &(elements[smallGlobalArraySize]), splitComm);
+	} else{
+		PQsort(smallGlobalArraySize, elements, MPI_COMM_WORLD);
+		PQsort(largeGlobalArraySize, &(elements[smallGlobalArraySize]), MPI_COMM_WORLD);	
+	}
+   }else{
+		printf("IT ACTUALLY DROPPED OUT!?\n");
+	}
 }
 /***************************************************************************
 partition
@@ -210,6 +237,11 @@ int main(int argc, char *argv[]){
 	}
 
 	PQsort(size, array, MPI_COMM_WORLD);
+	if(myrank == 0){
+		printf("Final array: \n");
+		display(array,size);
+		printf("\n");
+	}//end if
 	MPI_Finalize();
 }
 
