@@ -20,7 +20,7 @@ Brent Clapp*/
 
 void display(int *p,int size);
 void swap(int* array, int index1, int index2);
-int prefixSumRearrangement(int group_size, int listSize, int **elements, int* splitLocations, int* elsAtEachProcess);
+int prefixSumRearrangement(int group_size, int listSize, int *elements, int* splitLocations, int* elsAtEachProcess);
 
 void PQsort(int nelements, int *elements, MPI_Comm comm){
 
@@ -110,7 +110,7 @@ sleep(1);
 
 	//Utilize the prefix sum operation(Figure 9.19) to perform global rearrangement
 	if(myRank == root)
-		smallGlobalArraySize = prefixSumRearrangement(grp_size, nelements, &elements, splitLocations, send_count);
+		smallGlobalArraySize = prefixSumRearrangement(grp_size, nelements, elements, splitLocations, send_count);
 	
 	sleep(1);
 	if(myRank == root){
@@ -182,18 +182,18 @@ Places the smaller segmenets at the beginning of the list of elements,
 and places the larger segments at the end of the list of elements
 Returns the starting index of the segment of larger elements.
 ************************************************************/
-int prefixSumRearrangement(int group_size, int listSize, int **elements, int* splitLocations, int* elsAtEachProcess){
-	int *newElementsList;
+int prefixSumRearrangement(int group_size, int listSize, int *elements, int* splitLocations, int* elsAtEachProcess){
+	int tempElementsList[listSize];
 	int i, j, currPositionInNewArray = 0, currPositionInOldArray, smallListSize;
-	newElementsList = (int*)malloc(listSize * sizeof(int));
-
-	
+	//In order to rearrange the elements, we need to temporarily copy them elsewhere
+	for(i = 0; i < listSize; i++)
+		tempElementsList[i] = elements[i];
 	//Now, go through each processor's array. First, put small values in the new array
 	currPositionInOldArray = 0;
 	for(i = 0; i < group_size; i++){
 		for(j = 0; j < splitLocations[i]; j++){
 			//Grab each smaller element
-			newElementsList[currPositionInNewArray] = (*elements)[currPositionInOldArray+j];
+			elements[currPositionInNewArray] = tempElementsList[currPositionInOldArray+j];
 			currPositionInNewArray++;
 		}//end for(j)
 		//Move to next subArray
@@ -207,14 +207,13 @@ int prefixSumRearrangement(int group_size, int listSize, int **elements, int* sp
 	for(i = 0; i < group_size; i++){
 		for(j = splitLocations[i]; j < elsAtEachProcess[i]; j++){
 			//Grab each smaller element
-			newElementsList[currPositionInNewArray] = (*elements)[currPositionInOldArray+j];
+			elements[currPositionInNewArray] = tempElementsList[currPositionInOldArray+j];
 			currPositionInNewArray++;
 		}//end for(j)
 		//Move to next subArray
 		currPositionInOldArray += elsAtEachProcess[i];
 	}//end for(i)
-	//newElementsList now has the expected output. Return the size of the smaller half.
-	*elements = newElementsList;
+	//elements now has expected output. Return size of smaller half
 	return smallListSize;
 }//end prefixSumRearrangement
 
