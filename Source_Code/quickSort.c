@@ -30,8 +30,8 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 	int *localArray, *send_count, *displacements, *sEndIndexList, *lStartIndexList;
 	int sEndIndex, lStartIndex, global_sEndIndex, global_lStartIndex;
 	MPI_Comm splitComm;
-	MPI_Comm_rank(MPI_COMM_WORLD, &myRank);		//find rank
-	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
+	MPI_Comm_rank(comm, &myRank);		//find rank
+	MPI_Comm_size(comm, &grp_size);	//find group size
 	char outputStringTest[100];	
 
 	if(myRank == root){
@@ -57,7 +57,7 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 	}
 	
 	//Tell each process how much data to read
-	MPI_Scatter(send_count, 1, MPI_INT, &recCnt, 1, MPI_INT, root, MPI_COMM_WORLD);	
+	MPI_Scatter(send_count, 1, MPI_INT, &recCnt, 1, MPI_INT, root, comm);	
 	//Prepare a buffer large enough for that data
 	localArray = (int*)malloc(recCnt * sizeof(int));
 	
@@ -100,17 +100,17 @@ sleep(1);
 	//Root gathers all partitioned values back up
 	MPI_Gatherv(localArray, recCnt, MPI_INT,
 				elements, send_count, displacements, MPI_INT,
-				root, MPI_COMM_WORLD);
+				root, comm);
 
 	//Root gathers the location of where each small subarray end
 	if(myRank == root)
 		sEndIndexList = (int*)malloc(grp_size*sizeof(int));
-	MPI_Gather(&sEndIndex, 1, MPI_INT, sEndIndexList, 1, MPI_INT, root, MPI_COMM_WORLD);
+	MPI_Gather(&sEndIndex, 1, MPI_INT, sEndIndexList, 1, MPI_INT, root, comm);
 
 	//Root gathers the location of where each large subarray starts
 	if(myRank == root)
 		lStartIndexList = (int*)malloc(grp_size*sizeof(int));
-	MPI_Gather(&lStartIndex, 1, MPI_INT, lStartIndexList, 1, MPI_INT, root, MPI_COMM_WORLD);
+	MPI_Gather(&lStartIndex, 1, MPI_INT, lStartIndexList, 1, MPI_INT, root, comm);
 
 	//Utilize the prefix sum operation(Figure 9.19) to perform global rearrangement
 	if(myRank == root)
@@ -123,8 +123,8 @@ sleep(1);
 		printf("Global sEndIndex: %d	Global lStartIndex: %d\n", global_sEndIndex, global_lStartIndex);
 	}//end if
 	//All processes need to know the indices of both the small array's end index and the large array's start index
-	MPI_Bcast(&global_sEndIndex, 1, MPI_INT, root, MPI_COMM_WORLD);
-	MPI_Bcast(&global_lStartIndex, 1, MPI_INT, root, MPI_COMM_WORLD);
+	MPI_Bcast(&global_sEndIndex, 1, MPI_INT, root, comm);
+	MPI_Bcast(&global_lStartIndex, 1, MPI_INT, root, comm);
 	//Based upon these, compute the size of each array
 	smallGlobalArraySize = global_sEndIndex + 1;
 	largeGlobalArraySize = nelements - global_lStartIndex;
@@ -136,19 +136,16 @@ sleep(1);
 		else
 			color = 1;
 	
-		MPI_Comm_split(MPI_COMM_WORLD, color, 1, &splitComm);
+		MPI_Comm_split(comm, color, 1, &splitComm);
 	
-		if(color == 0){
-			printf("Entering small pqsort\n\n");
+		if(color == 0)
 			PQsort(smallGlobalArraySize, elements, splitComm);
-			printf("exiting small pqsort\n\n");		}
 		else
 			PQsort(largeGlobalArraySize, &(elements[global_lStartIndex]), splitComm);
 			
-		MPI_Barrier(splitComm);
 	 }else{
-		PQsort(smallGlobalArraySize, elements, MPI_COMM_WORLD);
-		PQsort(largeGlobalArraySize, &(elements[global_lStartIndex]), MPI_COMM_WORLD);	
+		PQsort(smallGlobalArraySize, elements, comm);
+		PQsort(largeGlobalArraySize, &(elements[global_lStartIndex]), comm);	
 	}
    }else{
 		printf("Base case reached. Dropping out.\n");
@@ -279,13 +276,13 @@ int main(int argc, char *argv[]){
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	size = 10;
-	int array [10] = {5,8,2,4,3,1,4,0,7,6};
-/*
+	int array [size];
+
 	if (myrank==0){
 		for(i=0;i<size;i++)
 			array[i] = rand()%size;
 	}		
-*/
+
 	if(myrank==0){
 		display(array,size);
 		printf("\n");
@@ -297,6 +294,7 @@ int main(int argc, char *argv[]){
 		display(array,size);
 		printf("\n");
 	}//end if
+	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
 }
 
