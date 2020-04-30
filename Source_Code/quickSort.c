@@ -32,7 +32,7 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 	MPI_Comm splitComm;
 	MPI_Comm_rank(comm, &myRank);		//find rank
 	MPI_Comm_size(comm, &grp_size);	//find group size
-char outputStringTest[300];	
+	char outputStringTest[500];	
 
 	if(myRank == root){
 		int dataBlockSize = nelements / grp_size;		//dataBlockSize is the number of elements per processor
@@ -49,12 +49,13 @@ char outputStringTest[300];
 				send_count[i] = largeDataBlock;
 				currOffset += largeDataBlock;
 				remainder--;
+
 			} else{ 					//No remainder left
 				send_count[i] = dataBlockSize;
 				currOffset += dataBlockSize;
 			}//end else
 		}//end for
-	}
+	}//end if
 	
 	//Tell each process how much data to read
 	MPI_Scatter(send_count, 1, MPI_INT, &recCnt, 1, MPI_INT, root, comm);	
@@ -62,7 +63,7 @@ char outputStringTest[300];
 	localArray = (int*)malloc(recCnt * sizeof(int));
 	
 	//Distribute that data to each process
-	MPI_Scatterv(elements, send_count,displacements,MPI_INT,localArray,recCnt,MPI_INT,0,comm);
+	MPI_Scatterv(elements, send_count,displacements,MPI_INT,localArray,recCnt,MPI_INT,root,comm);
 	
 	//Root: Select a random process
 	if(myRank == root)
@@ -71,10 +72,9 @@ char outputStringTest[300];
 	MPI_Bcast(&randProc, 1, MPI_INT, root, comm);
 	
 	//RandProc: Select a pivot
-	if(myRank == randProc){
+	if(myRank == randProc)
 		pivot = localArray[rand() % recCnt];
-		printf("Pivot selected: %d\n", pivot); //**** TESTING CODE
-	}//end if
+
 	//Distribute the pivot to all processes
 	MPI_Bcast(&pivot, 1, MPI_INT, randProc, comm);
 //start testing code
@@ -114,10 +114,12 @@ sleep(1);
 	
 //Start testing code
 	sprintf(outputStringTest, "%s\nList after global rearrangement: ", outputStringTest);
-	for(i = 0; i < nelements; i++)
-		sprintf(outputStringTest, "%s %d", outputStringTest, elements[i]);
-	if(myRank == root)
+
+	if(myRank == root){
+		for(i = 0; i < nelements; i++)
+			sprintf(outputStringTest, "%s %d", outputStringTest, elements[i]);
 		printf("%s\n", outputStringTest);
+	}
 //end testing code
 
 	//All processes need to know the indices of both the small array's end index and the large array's start index
@@ -126,21 +128,25 @@ sleep(1);
 	//Based upon these, compute the size of each array
 	smallGlobalArraySize = global_sEndIndex + 1;
 	largeGlobalArraySize = nelements - global_lStartIndex;
-
 	if(grp_size > 1){
 		//Determine who is going to which subgroup
-		if(myRank < (((double)smallGlobalArraySize / (double)nelements) * (double)grp_size))
+		if(myRank < (((double)smallGlobalArraySize / (double)nelements) * grp_size))
 			color = 0;
 		else
 			color = 1;
-	
-		MPI_Comm_split(comm, color, 1, &splitComm);
+		
+		MPI_Comm_split(comm, color, 0, &splitComm);
 
-		if(color == 0)
+		if(color == 0){
+			printf("Entering small PQsort\n");
 			PQsort(smallGlobalArraySize, elements, splitComm);
-		else
+			printf("Exiting small PQsort\n");
+		}else{
+			printf("Entering large PQsort");
 			PQsort(largeGlobalArraySize, &(elements[global_lStartIndex]), splitComm);
-			
+			printf("Exiting large PQsort\n");
+		}
+		MPI_Barrier(splitComm);	
 	 }else{
 		PQsort(smallGlobalArraySize, elements, comm);
 		PQsort(largeGlobalArraySize, &(elements[global_lStartIndex]), comm);	
@@ -148,6 +154,7 @@ sleep(1);
    }else{
 		printf("Base case reached. Dropping out.\n");
 	}
+	MPI_Barrier(comm);
 }
 /***************************************************************************
 partition
@@ -270,12 +277,10 @@ void prefixSumRearrangement(int group_size, int listSize, int *elements, int* sE
 int main(int argc, char *argv[]){
 	MPI_Init(&argc,&argv);
 	srand(time(0)); //Seed rng
-	int myrank,i, size, grp_size;
-	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
-	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
-	size = 25;
+	int i, size, myrank;
+	size = 20;
 	int array [size];
-
+	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 	if (myrank==0){
 		for(i=0;i<size;i++)
 			array[i] = rand()%size;
@@ -292,7 +297,6 @@ int main(int argc, char *argv[]){
 		display(array,size);
 		printf("\n");
 	}//end if
-	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
 }
 
