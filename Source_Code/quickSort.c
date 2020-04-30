@@ -203,11 +203,6 @@ void partition(int* array, int size, int pivot, int *pstart, int *lstart){
 		swap(array, leftIndex, --k);
 	printf("\n");
 	
-	if(rightIndex < 0)
-		rightIndex = 0;
-	if(leftIndex >= size)
-		leftIndex = size - 1;
-
 	*pstart = rightIndex;
 	*lstart = leftIndex;
 }//end partition
@@ -284,7 +279,7 @@ int main(int argc, char *argv[]){
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
 	size = 10;
-	int array [10] = {5,8,2,9,3,1,4,0,7,6};
+	int array [10] = {5,8,2,4,3,1,4,0,7,6};
 /*
 	if (myrank==0){
 		for(i=0;i<size;i++)
