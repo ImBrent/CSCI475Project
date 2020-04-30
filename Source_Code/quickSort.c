@@ -32,7 +32,7 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 	MPI_Comm splitComm;
 	MPI_Comm_rank(comm, &myRank);		//find rank
 	MPI_Comm_size(comm, &grp_size);	//find group size
-	char outputStringTest[100];	
+char outputStringTest[300];	
 
 	if(myRank == root){
 		int dataBlockSize = nelements / grp_size;		//dataBlockSize is the number of elements per processor
@@ -62,13 +62,13 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 	localArray = (int*)malloc(recCnt * sizeof(int));
 	
 	//Distribute that data to each process
-	MPI_Scatterv(elements, send_count,displacements,MPI_INT,localArray,recCnt,MPI_INT,0,MPI_COMM_WORLD);
+	MPI_Scatterv(elements, send_count,displacements,MPI_INT,localArray,recCnt,MPI_INT,0,comm);
 	
 	//Root: Select a random process
 	if(myRank == root)
 		randProc = rand() % grp_size;
 	
-	MPI_Bcast(&randProc, 1, MPI_INT, root, MPI_COMM_WORLD);
+	MPI_Bcast(&randProc, 1, MPI_INT, root, comm);
 	
 	//RandProc: Select a pivot
 	if(myRank == randProc){
@@ -76,11 +76,8 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 		printf("Pivot selected: %d\n", pivot); //**** TESTING CODE
 	}//end if
 	//Distribute the pivot to all processes
-	MPI_Bcast(&pivot, 1, MPI_INT, randProc, MPI_COMM_WORLD);
-//Start testing code
-	if(myRank == root)
-		printf("\nValues of all processes before and after\n");
-
+	MPI_Bcast(&pivot, 1, MPI_INT, randProc, comm);
+//start testing code
 	sprintf(outputStringTest, "My rank: %d\nMy initial values: ", myRank);
 	for(i = 0; i < recCnt; i++)
 		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
@@ -93,7 +90,6 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 
 	for(i = 0; i < recCnt; i++)
 		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
-	printf("%s\n", outputStringTest);
 sleep(1);
 //end testing code
 
@@ -116,12 +112,14 @@ sleep(1);
 	if(myRank == root)
 		prefixSumRearrangement(grp_size, nelements, elements, sEndIndexList, lStartIndexList, send_count, &global_sEndIndex, &global_lStartIndex);
 	
-	if(myRank == root){
-		printf("New list of elements: ");
-		display(elements, nelements);
-		printf("\n");
-		printf("Global sEndIndex: %d	Global lStartIndex: %d\n", global_sEndIndex, global_lStartIndex);
-	}//end if
+//Start testing code
+	sprintf(outputStringTest, "%s\nList after global rearrangement: ", outputStringTest);
+	for(i = 0; i < nelements; i++)
+		sprintf(outputStringTest, "%s %d", outputStringTest, elements[i]);
+	if(myRank == root)
+		printf("%s\n", outputStringTest);
+//end testing code
+
 	//All processes need to know the indices of both the small array's end index and the large array's start index
 	MPI_Bcast(&global_sEndIndex, 1, MPI_INT, root, comm);
 	MPI_Bcast(&global_lStartIndex, 1, MPI_INT, root, comm);
@@ -137,7 +135,7 @@ sleep(1);
 			color = 1;
 	
 		MPI_Comm_split(comm, color, 1, &splitComm);
-	
+
 		if(color == 0)
 			PQsort(smallGlobalArraySize, elements, splitComm);
 		else
@@ -275,7 +273,7 @@ int main(int argc, char *argv[]){
 	int myrank,i, size, grp_size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);		//find rank
 	MPI_Comm_size(MPI_COMM_WORLD, &grp_size);	//find group size
-	size = 10;
+	size = 25;
 	int array [size];
 
 	if (myrank==0){
