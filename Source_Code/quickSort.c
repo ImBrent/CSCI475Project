@@ -26,13 +26,13 @@ void partition(int* array, int size, int pivot, int *pstart, int *lstart);
 void PQsort(int nelements, int *elements, MPI_Comm comm){
 
     if(nelements > 1){ //Base case, no sorting left to do
-	int myRank, recCnt, grp_size, i, pivot, randProc, root = 0, currOffset = 0, splitIndex, smallGlobalArraySize, largeGlobalArraySize, color;
+	int myRank, recCnt, grp_size, i, pivot, randProc, root = 0, currOffset = 0, splitIndex, smallGlobalArraySize, largeGlobalArraySize, color, newRoot, newRank = -1;
 	int *localArray, *send_count, *displacements, *sEndIndexList, *lStartIndexList;
-	int sEndIndex, lStartIndex, global_sEndIndex, global_lStartIndex;
+	int sEndIndex, lStartIndex, global_sEndIndex, global_lStartIndex, newGrpSize;
+	double proportion;
 	MPI_Comm splitComm;
 	MPI_Comm_rank(comm, &myRank);		//find rank
 	MPI_Comm_size(comm, &grp_size);	//find group size
-	char outputStringTest[500];	
 
 	if(myRank == root){
 		int dataBlockSize = nelements / grp_size;		//dataBlockSize is the number of elements per processor
@@ -59,6 +59,7 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 	
 	//Tell each process how much data to read
 	MPI_Scatter(send_count, 1, MPI_INT, &recCnt, 1, MPI_INT, root, comm);	
+
 	//Prepare a buffer large enough for that data
 	localArray = (int*)malloc(recCnt * sizeof(int));
 	
@@ -77,21 +78,9 @@ void PQsort(int nelements, int *elements, MPI_Comm comm){
 
 	//Distribute the pivot to all processes
 	MPI_Bcast(&pivot, 1, MPI_INT, randProc, comm);
-//start testing code
-	sprintf(outputStringTest, "My rank: %d\nMy initial values: ", myRank);
-	for(i = 0; i < recCnt; i++)
-		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
-//end testing code
+
 	//Partition the arrays:
 	partition(localArray, recCnt, pivot, &sEndIndex, &lStartIndex);
-
-//Start testing code
-	sprintf(outputStringTest, "%s\nMy partitioned values: ", outputStringTest);
-
-	for(i = 0; i < recCnt; i++)
-		sprintf(outputStringTest, "%s %d", outputStringTest, localArray[i]);
-sleep(1);
-//end testing code
 
 	//Root gathers all partitioned values back up
 	MPI_Gatherv(localArray, recCnt, MPI_INT,
@@ -111,16 +100,6 @@ sleep(1);
 	//Utilize the prefix sum operation(Figure 9.19) to perform global rearrangement
 	if(myRank == root)
 		prefixSumRearrangement(grp_size, nelements, elements, sEndIndexList, lStartIndexList, send_count, &global_sEndIndex, &global_lStartIndex);
-	
-//Start testing code
-	sprintf(outputStringTest, "%s\nList after global rearrangement: ", outputStringTest);
-
-	if(myRank == root){
-		for(i = 0; i < nelements; i++)
-			sprintf(outputStringTest, "%s %d", outputStringTest, elements[i]);
-		printf("%s\n", outputStringTest);
-	}
-//end testing code
 
 	//All processes need to know the indices of both the small array's end index and the large array's start index
 	MPI_Bcast(&global_sEndIndex, 1, MPI_INT, root, comm);
@@ -130,31 +109,49 @@ sleep(1);
 	largeGlobalArraySize = nelements - global_lStartIndex;
 	if(grp_size > 1){
 		//Determine who is going to which subgroup
-		if(myRank < (((double)smallGlobalArraySize / (double)nelements) * grp_size))
+		proportion = (((double)smallGlobalArraySize / (double)nelements) * grp_size);
+		if(myRank < proportion)
 			color = 0;
 		else
 			color = 1;
 		
 		MPI_Comm_split(comm, color, 0, &splitComm);
-
-		if(color == 0){
-			printf("Entering small PQsort\n");
-			PQsort(smallGlobalArraySize, elements, splitComm);
-			printf("Exiting small PQsort\n");
-		}else{
-			printf("Entering large PQsort");
-			PQsort(largeGlobalArraySize, &(elements[global_lStartIndex]), splitComm);
-			printf("Exiting large PQsort\n");
+		MPI_Comm_rank(splitComm, &newRank);
+		//If two groups do exist, then give elements to new root
+		if(newRank == root && color == 1){
+			newRoot = myRank;
+			printf("newRoot: %d\n", newRoot);
 		}
-		MPI_Barrier(splitComm);	
+
+//This barrier is not blocking for some reason, and I cannot procede from here.
+// The MPI_Send below here is executing before the if statement immediately above here on certain processing elements
+		MPI_Barrier(comm);
+
+		if(proportion != grp_size && proportion != 0.0){
+			if(myRank == newRoot)
+				MPI_Recv(elements, largeGlobalArraySize, MPI_INT, root, 0, comm, 0);
+			if(myRank == root)
+				MPI_Send(&(elements[global_lStartIndex]), largeGlobalArraySize, MPI_INT, newRoot, 0, comm);	
+		}//end if	
+		//Send all processes to recursive calls
+		if(color == 0)
+			PQsort(smallGlobalArraySize, elements, splitComm);
+		else
+			PQsort(largeGlobalArraySize, &(elements[global_lStartIndex]), splitComm);
+			
+		MPI_Barrier(comm);
+		//Gather the changes back from the other root	
+		if(newGrpSize > 0)	
+			if(myRank == newRoot)
+				MPI_Send(elements, largeGlobalArraySize, MPI_INT, root, 0, comm);
+			else if(myRank == root)
+				MPI_Recv(&(elements[global_lStartIndex]), largeGlobalArraySize, MPI_INT, newRoot, 0, comm, 0);
 	 }else{
 		PQsort(smallGlobalArraySize, elements, comm);
 		PQsort(largeGlobalArraySize, &(elements[global_lStartIndex]), comm);	
-	}
-   }else{
-		printf("Base case reached. Dropping out.\n");
-	}
-	MPI_Barrier(comm);
+  	}//end else
+
+    }//end if
 }
 /***************************************************************************
 partition
